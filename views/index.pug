@@ -1,0 +1,10 @@
+html
+  head
+    title Word Count
+  body
+    h1 Word Count
+    h2 #{url}
+    p There are #{wordCount} words!
+    ul
+      each val, index in topTenWords
+        li= index + ': ' + val
