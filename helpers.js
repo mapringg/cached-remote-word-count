@@ -3,7 +3,6 @@ const cheerio = require('cheerio')
 
 exports.responseBasedOnType = (url, res, accept, wordCount, topTenWords) => {
   if (accept === 'application/json') {
-    // console.log('fetched')
     return res.send({ wordCount, topTenWords })
   } else if (accept === 'text/plain') {
     res.set('Content-Type', 'text/plain')
@@ -12,12 +11,10 @@ exports.responseBasedOnType = (url, res, accept, wordCount, topTenWords) => {
       (error, response, body) => {
         const $ = cheerio.load(body)
         const words = $('body').text()
-        // console.log('fetched')
         return res.send(words)
       }
     )
   } else {
-    // console.log('fetched')
     return res.render('index', {
       url,
       wordCount,
