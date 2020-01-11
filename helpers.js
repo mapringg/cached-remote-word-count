@@ -46,3 +46,23 @@ exports.extractTopTenWords = words => {
   })
   return objSorted
 }
+
+exports.fetchNewData = (body, cache, url, headers, res, accept, done) => {
+  const $ = cheerio.load(body)
+  const words = $('body')
+    .text()
+    // .match(/\b[a-z]{1,20}/gi)
+    .match(/(?<![-])\b[a-zA-Z]{1,20}\b(?![-])/g)
+  cache[url].etag = headers.etag
+  cache[url].topTenWords = this.extractTopTenWords(words)
+  cache[url].wordCount = words.length
+  res.setHeader('cache-data', 'false')
+  done()
+  return this.responseBasedOnType(
+    url,
+    res,
+    accept,
+    cache[url].wordCount,
+    cache[url].topTenWords
+  )
+}

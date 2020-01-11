@@ -1,5 +1,4 @@
 const express = require('express')
-const cheerio = require('cheerio')
 const rp = require('request-promise')
 const AsyncLock = require('async-lock')
 
@@ -17,13 +16,32 @@ app.get('/wc', async (req, res, next) => {
   const url = req.query.target
   const force = req.query.force
   const accept = req.headers.accept
-  const headers = req.headers
-  console.log(headers)
   lock.acquire(
     url,
     async done => {
       // async work
       if (cache[url] && (force === 'false' || force === undefined)) {
+        const onlyHeaders = function(body, response, resolveWithFullResponse) {
+          return {
+            headers: response.headers
+          }
+        }
+        const { headers } = await rp({
+          url,
+          transform: onlyHeaders
+        })
+        if (cache[url].etag !== headers.etag) {
+          const body = await rp(url)
+          return helpers.fetchNewData(
+            body,
+            cache,
+            url,
+            headers,
+            res,
+            accept,
+            done
+          )
+        }
         res.setHeader('cache-data', 'true')
         done()
         return helpers.responseBasedOnType(
@@ -34,24 +52,13 @@ app.get('/wc', async (req, res, next) => {
           cache[url].topTenWords
         )
       }
-      const htmlString = await rp(url)
-      const $ = cheerio.load(htmlString)
-      const words = $('body')
-        .text()
-        // .match(/\b[a-z]{1,20}/gi)
-        .match(/(?<![-])\b[a-zA-Z]{1,20}\b(?![-])/g)
-      cache[url] = {}
-      cache[url].topTenWords = helpers.extractTopTenWords(words)
-      cache[url].wordCount = words.length
-      res.setHeader('cache-data', 'false')
-      done()
-      return helpers.responseBasedOnType(
+      const { body, caseless } = await rp({
         url,
-        res,
-        accept,
-        cache[url].wordCount,
-        cache[url].topTenWords
-      )
+        resolveWithFullResponse: true
+      })
+      const headers = caseless.dict
+      cache[url] = {}
+      return helpers.fetchNewData(body, cache, url, headers, res, accept, done)
     },
     function(err, ret) {
       // lock released
