@@ -1,21 +1,18 @@
-const request = require('request')
 const cheerio = require('cheerio')
 
-exports.responseBasedOnType = (url, res, accept, wordCount, topTenWords) => {
+const responseBasedOnType = (url, res, accept, wordCount, topTenWords) => {
+  console.log('returning data')
   if (accept === 'application/json') {
-    return res.send({ wordCount, topTenWords })
+    res.send({ wordCount, topTenWords })
   } else if (accept === 'text/plain') {
     res.set('Content-Type', 'text/plain')
-    request(
-      `http://localhost:3000/wc?target=${url}`,
-      (error, response, body) => {
-        const $ = cheerio.load(body)
-        const words = $('body').text()
-        return res.send(words)
-      }
+    res.send(
+      `There are ${wordCount} words. The top ten words are ${Object.keys(
+        topTenWords
+      ).join(', ')}.`
     )
   } else {
-    return res.render('index', {
+    res.render('index', {
       url,
       wordCount,
       topTenWords
@@ -23,7 +20,7 @@ exports.responseBasedOnType = (url, res, accept, wordCount, topTenWords) => {
   }
 }
 
-exports.extractTopTenWords = words => {
+const extractTopTenWords = words => {
   const topTenWords = {}
   for (word of words) {
     if (!topTenWords[word]) {
@@ -47,18 +44,20 @@ exports.extractTopTenWords = words => {
   return objSorted
 }
 
-exports.fetchNewData = (body, cache, url, headers, res, accept, done) => {
+const parseNewData = (body, cache, url, headers, res, accept, done) => {
+  console.log('data parsing')
+  cache[url].time = new Date().getTime()
   const $ = cheerio.load(body)
   const words = $('body')
     .text()
     // .match(/\b[a-z]{1,20}/gi)
     .match(/(?<![-])\b[a-zA-Z]{1,20}\b(?![-])/g)
   cache[url].etag = headers.etag
-  cache[url].topTenWords = this.extractTopTenWords(words)
+  cache[url].topTenWords = extractTopTenWords(words)
   cache[url].wordCount = words.length
   res.setHeader('cache-data', 'false')
   done()
-  return this.responseBasedOnType(
+  responseBasedOnType(
     url,
     res,
     accept,
@@ -66,3 +65,20 @@ exports.fetchNewData = (body, cache, url, headers, res, accept, done) => {
     cache[url].topTenWords
   )
 }
+
+const returnOldData = (res, done, url, accept, cache) => {
+  res.setHeader('cache-data', 'true')
+  res.setHeader('etag-changed', 'false')
+  done()
+  responseBasedOnType(
+    url,
+    res,
+    accept,
+    cache[url].wordCount,
+    cache[url].topTenWords
+  )
+}
+
+exports.responseBasedOnType = responseBasedOnType
+exports.parseNewData = parseNewData
+exports.returnOldData = returnOldData
